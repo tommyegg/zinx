@@ -1,6 +1,9 @@
 package znet
 
 import (
+	"fmt"
+	"net"
+
 	"github.com/tommyegg/zinx/ziface"
 )
 
@@ -17,7 +20,50 @@ type Server struct {
 }
 
 func (s *Server) Start() {
+	fmt.Printf("[Start] Server Lintenner at IP: %s,Port %d", s.IP, s.Port)
 
+	go func() {
+		//1.取得一個tcp的addr
+		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
+		if err != nil {
+			fmt.Println("reslove tcp addr error:", err)
+			return
+		}
+
+		//2.監聽伺服器的地址
+		listenner, err := net.ListenTCP(s.IPVersion, addr)
+		if err != nil {
+			fmt.Println("listen ", s.IPVersion, "err:", err)
+		}
+
+		fmt.Println("start Zinx server succ,", s.Name, "succ, Lintenning...")
+
+		//3.阻塞等待客戶端連線，處理客戶端的業務（讀寫）
+		for {
+			conn, err := listenner.AcceptTCP()
+			if err != nil {
+				fmt.Println("Accept err,", err)
+				continue
+			}
+
+			//已經與客戶端建立連接
+			go func() {
+				for {
+					buf := make([]byte, 512)
+					cnt, err := conn.Read(buf)
+					if err != nil {
+						fmt.Println("recv btf err ", err)
+						continue
+					}
+
+					if _, err := conn.Write(buf[:cnt]); err != nil {
+						fmt.Println("write back buf err ", err)
+						continue
+					}
+				}
+			}()
+		}
+	}()
 }
 
 func (s *Server) Stop() {
@@ -25,9 +71,22 @@ func (s *Server) Stop() {
 }
 
 func (s *Server) Serve() {
+	//啟動server的服務功能
+	s.Start()
 
+	//TODO 做一些啟動伺服器之後的額外流程
+
+	//阻塞
+	select {}
 }
 
 func NewServer(name string) ziface.IServer {
+	s := &Server{
+		Name:      name,
+		IPVersion: "tcp4",
+		IP:        "0.0.0.0",
+		Port:      8999,
+	}
 
+	return s
 }
