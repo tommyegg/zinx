@@ -17,6 +17,8 @@ type Server struct {
 	IP string
 	//伺服器監聽的port
 	Port int
+	//當前的server增加一個router，server註冊的連線對應的業務處理
+	Router ziface.IRouter
 }
 
 func (s *Server) Start() {
@@ -37,6 +39,8 @@ func (s *Server) Start() {
 		}
 
 		fmt.Println("start Zinx server succ,", s.Name, "succ, Lintenning...")
+		var cid uint32
+		cid = 0
 
 		//3.阻塞等待客戶端連線，處理客戶端的業務（讀寫）
 		for {
@@ -46,24 +50,10 @@ func (s *Server) Start() {
 				continue
 			}
 
-			//已經與客戶端建立連接
-			go func() {
-				for {
-					buf := make([]byte, 512)
-					cnt, err := conn.Read(buf)
-					if err != nil {
-						fmt.Println("recv btf err ", err)
-						continue
-					}
+			dealConnection := NewConnection(conn, cid, s.Router)
+			cid++
 
-					fmt.Printf("recv client buf %s,cnt %d\n", buf, cnt)
-
-					if _, err := conn.Write(buf[:cnt]); err != nil {
-						fmt.Println("write back buf err ", err)
-						continue
-					}
-				}
-			}()
+			go dealConnection.Start()
 		}
 	}()
 }
@@ -82,12 +72,18 @@ func (s *Server) Serve() {
 	select {}
 }
 
+func (s *Server) AddRouter(router ziface.IRouter) {
+	s.Router = router
+	fmt.Println("Add Router Successful")
+}
+
 func NewServer(name string) ziface.IServer {
 	s := &Server{
 		Name:      name,
 		IPVersion: "tcp4",
 		IP:        "0.0.0.0",
 		Port:      8999,
+		Router:    nil,
 	}
 
 	return s
