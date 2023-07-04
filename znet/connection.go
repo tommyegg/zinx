@@ -93,21 +93,21 @@ func (c *Connection) Stop() {
 }
 
 // 獲取當前連線綁定的socket conn
-func GetTCPConnection(c *Connection) *net.TCPConn {
+func (c *Connection) GetTCPConnection() *net.TCPConn {
 	return c.Conn
 }
 
 // 獲取當前連線模組的連線ID
-func GetConnId(c *Connection) uint32 {
+func (c *Connection) GetConnId() uint32 {
 	return c.ConnId
 }
 
 // 獲取遠端客戶的TCP狀態 ip port
-func RemoteAddr(c *Connection) net.Addr {
+func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 
 // 發送數據，將數據發送給遠端客戶
-func Send(data []byte) error {
+func (c *Connection) Send(data []byte) error {
 	return nil
 }
