@@ -24,7 +24,7 @@ type Server struct {
 
 func (s *Server) Start() {
 	fmt.Printf(
-		"[Zinx] Server Name: %s, listenner at IP: %s,Port:%d is starting",
+		"[Zinx] Server Name: %s, listenner at IP: %s,Port:%d is starting\n",
 		utils.GlobalObject.Name,
 		utils.GlobalObject.Host,
 		utils.GlobalObject.TcpPort)
