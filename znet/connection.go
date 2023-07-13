@@ -1,10 +1,11 @@
 package znet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net"
 
-	"github.com/tommyegg/zinx/utils"
 	"github.com/tommyegg/zinx/ziface"
 )
 
@@ -48,17 +49,44 @@ func (c *Connection) StartReader() {
 
 	for {
 		//讀取客戶端的數據到buf中
-		buf := make([]byte, utils.GlobalObject.MaxPackageSize)
-		_, err := c.Conn.Read(buf)
-		if err != nil {
-			fmt.Println("recv buff err", err)
-			continue
+		// buf := make([]byte, utils.GlobalObject.MaxPackageSize)
+		// _, err := c.Conn.Read(buf)
+		// if err != nil {
+		// 	fmt.Println("recv buff err", err)
+		// 	continue
+		// }
+
+		//創建一個拆包解包的對象
+		dp := NewDataPack()
+		//讀取客戶端的Msg Head 二進制流 8個字節
+		headData := make([]byte, dp.GetHeadLen())
+		if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
+			fmt.Println("read msg head error")
+			break
 		}
+
+		//拆包，得到MsgId 和 msgDatalen 放在msg消息中
+		msg, err := dp.Unpack(headData)
+		if err != nil {
+			fmt.Println("unpack error", err)
+			break
+		}
+
+		//根據datalen 再次讀取Data, 放在 msg.Data中
+		var data []byte
+		if msg.GetMsgLen() > 0 {
+			data = make([]byte, msg.GetMsgLen())
+			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
+				fmt.Println("read msg data error", err)
+				break
+			}
+		}
+		msg.SetData(data)
 
 		//得到目前conn數據的request請求數據
 		req := Request{
 			conn: c,
-			data: buf,
+			msg:  msg,
 		}
 
 		//從路由中，找到註冊綁定的Conn對應的router方法
@@ -68,6 +96,29 @@ func (c *Connection) StartReader() {
 			c.Router.PostHandler(request)
 		}(&req)
 	}
+}
+
+// 提供一個SendMsg方法，將要發送給客戶端的數據先進行封包
+func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+	if c.isClosed == true {
+		return errors.New("Connection closed when send msg")
+	}
+
+	//將data進行封包 MsgDataLen|MsgId|Data
+	dp := NewDataPack()
+	//MsgDataLen|MsgId|Data
+	binaryMsg, err := dp.Pack(NewMsgPackage(msgId, data))
+	if err != nil {
+		fmt.Println("Pack error msg id=", msgId)
+		return errors.New("Pack error msg")
+	}
+
+	if _, err := c.Conn.Write(binaryMsg); err != nil {
+		fmt.Println("Write msg id", msgId, "error:", err)
+		return errors.New("conn write err")
+	}
+
+	return nil
 }
 
 func (c *Connection) Start() {
@@ -106,9 +157,4 @@ func (c *Connection) GetConnId() uint32 {
 // 獲取遠端客戶的TCP狀態 ip port
 func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
-}
-
-// 發送數據，將數據發送給遠端客戶
-func (c *Connection) Send(data []byte) error {
-	return nil
 }
